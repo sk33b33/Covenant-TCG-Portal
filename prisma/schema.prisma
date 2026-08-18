@@ -1,0 +1,222 @@
+// Covenant TCG Portal — database schema
+//
+// Design principle (see docs/ARCHITECTURE.md): authentication identity,
+// player profile, and future in-game identity are kept as separate models
+// so the web account, the public profile, and the eventual game client
+// integration can evolve independently.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth identity
+// ---------------------------------------------------------------------------
+
+enum Role {
+  PLAYER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  role          Role      @default(PLAYER)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  profile            PlayerProfile?
+  gameLink           GamePlayerLink?
+  sessions           Session[]
+  verificationTokens VerificationToken[]
+  authoredArticles   NewsArticle[]
+
+  @@map("users")
+}
+
+// Server-side session store. The cookie only ever holds an opaque random
+// token; `id` here is a SHA-256 hash of that token so a leaked database
+// row can never be replayed as a cookie. This also makes multi-device
+// login and per-session revocation trivial (see docs/AUTH.md).
+model Session {
+  id        String   @id // sha256(token) hex
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  ipAddress String?
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+enum VerificationTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// Single-use, expiring, hashed tokens for email verification and password
+// reset. Only the hash is stored — the raw token exists solely in the
+// emailed link.
+model VerificationToken {
+  id        String                @id @default(cuid())
+  userId    String
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String                @unique
+  type      VerificationTokenType
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime              @default(now())
+
+  @@index([userId, type])
+  @@map("verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Player profile (public identity, separate from auth credentials)
+// ---------------------------------------------------------------------------
+
+model PlayerProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String   @unique
+  avatarUrl   String?
+  bio         String?  @db.VarChar(280)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leaderboardEntries LeaderboardEntry[]
+
+  @@map("player_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Game integration (placeholder — no game client exists yet)
+// ---------------------------------------------------------------------------
+
+enum GameLinkStatus {
+  NOT_LINKED
+  PENDING
+  LINKED
+}
+
+// Tracks whether a website account has been connected to an in-game player
+// identity. `gamePlayerId` is the identifier the (future) game client/server
+// would present when authenticating; it is intentionally opaque here since
+// the game's own identity format is not yet defined.
+model GamePlayerLink {
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gamePlayerId String?        @unique
+  status       GameLinkStatus @default(NOT_LINKED)
+  gameVersion  String?
+  linkedAt     DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@map("game_player_links")
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboards
+// ---------------------------------------------------------------------------
+
+// A competitive period. `isDemo` marks seasons created by the local seed
+// script for local development / preview — the UI surfaces this so seeded
+// rows are never mistaken for real results (see docs/DATABASE.md).
+model Season {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  startAt   DateTime
+  endAt     DateTime?
+  isActive  Boolean   @default(false)
+  isDemo    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  entries LeaderboardEntry[]
+  matches MatchResult[]
+
+  @@map("seasons")
+}
+
+// One row per game-identity per season. Keyed by `gamePlayerId` (not the
+// website profile) because match results are reported by the game using
+// its own player id; `playerProfileId` is filled in opportunistically when
+// that game identity is linked to a website account, so the leaderboard can
+// show a display name/avatar instead of a raw id.
+model LeaderboardEntry {
+  id                  String         @id @default(cuid())
+  seasonId            String
+  season              Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  gamePlayerId        String
+  playerProfileId     String?
+  playerProfile       PlayerProfile? @relation(fields: [playerProfileId], references: [id])
+  displayNameSnapshot String // fallback label when no linked profile
+  rating              Int            @default(1000)
+  wins                Int            @default(0)
+  losses              Int            @default(0)
+  matchesPlayed       Int            @default(0)
+  updatedAt           DateTime       @updatedAt
+
+  @@unique([seasonId, gamePlayerId])
+  @@index([seasonId, rating])
+  @@map("leaderboard_entries")
+}
+
+// Raw match results, always recorded server-to-server by the game backend
+// (see docs/GAME_INTEGRATION.md). `ratingDelta`/aggregate updates use a
+// placeholder flat-rating algorithm clearly documented as provisional —
+// no real competitive ruleset is implied by this schema.
+model MatchResult {
+  id                 String   @id @default(cuid())
+  seasonId           String
+  season             Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  winnerGamePlayerId String
+  loserGamePlayerId  String
+  playedAt           DateTime
+  submittedAt        DateTime @default(now())
+  raw                Json?
+
+  @@index([seasonId, playedAt])
+  @@map("match_results")
+}
+
+// ---------------------------------------------------------------------------
+// News
+// ---------------------------------------------------------------------------
+
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model NewsArticle {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  title        String
+  excerpt      String
+  body         String // Markdown
+  heroImageUrl String?
+  category     String?
+  status       NewsStatus @default(DRAFT)
+  authorId     String
+  author       User       @relation(fields: [authorId], references: [id])
+  publishedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([status, publishedAt])
+  @@map("news_articles")
+}

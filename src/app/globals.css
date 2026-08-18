@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+:root {
+  --color-ink: #0a0b0d;
+  --color-ink-raised: #101216;
+  --color-panel: #14171c;
+  --color-panel-2: #1b1f26;
+  --color-line: #2a2f38;
+  --color-line-soft: #20242c;
+  --color-parchment: #ece7da;
+  --color-muted: #9aa1ad;
+  --color-faint: #6b7280;
+  --color-gold: #c9a24b;
+  --color-gold-bright: #e8c878;
+  --color-arcane: #7c8ce6;
+  --color-danger: #e2635c;
+  --color-danger-soft: #3a2020;
+  --color-success: #5cc38c;
+  --color-success-soft: #1c3327;
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-ink-raised: var(--color-ink-raised);
+  --color-panel: var(--color-panel);
+  --color-panel-2: var(--color-panel-2);
+  --color-line: var(--color-line);
+  --color-line-soft: var(--color-line-soft);
+  --color-parchment: var(--color-parchment);
+  --color-muted: var(--color-muted);
+  --color-faint: var(--color-faint);
+  --color-gold: var(--color-gold);
+  --color-gold-bright: var(--color-gold-bright);
+  --color-arcane: var(--color-arcane);
+  --color-danger: var(--color-danger);
+  --color-danger-soft: var(--color-danger-soft);
+  --color-success: var(--color-success);
+  --color-success-soft: var(--color-success-soft);
+
+  --font-display: var(--font-cinzel), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --animate-fade-up: fade-up 0.5s ease-out both;
+  --animate-fade-in: fade-in 0.4s ease-out both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-parchment);
+  font-family: var(--font-sans);
+}
+
+/* Ambient background glow used behind hero/panel sections. Purely
+   decorative, so it's hidden entirely for reduced-motion users along with
+   every other non-essential animation below. */
+.bg-covenant-glow {
+  background-image:
+    radial-gradient(60rem 30rem at 15% -10%, color-mix(in oklab, var(--color-gold) 10%, transparent), transparent),
+    radial-gradient(50rem 26rem at 100% 0%, color-mix(in oklab, var(--color-arcane) 12%, transparent), transparent);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Minimal typographic styles for rendered Markdown (news articles). Kept
+   local rather than pulling in @tailwindcss/typography for a handful of
+   rules. */
+.prose-covenant {
+  color: var(--color-parchment);
+  line-height: 1.75;
+}
+.prose-covenant p {
+  margin: 1.25em 0;
+  color: color-mix(in oklab, var(--color-parchment) 90%, transparent);
+}
+.prose-covenant h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  margin: 2em 0 0.75em;
+  color: var(--color-gold-bright);
+}
+.prose-covenant h3 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  margin: 1.75em 0 0.5em;
+  color: var(--color-parchment);
+}
+.prose-covenant ul,
+.prose-covenant ol {
+  margin: 1.25em 0;
+  padding-left: 1.5em;
+  color: color-mix(in oklab, var(--color-parchment) 90%, transparent);
+}
+.prose-covenant ul {
+  list-style: disc;
+}
+.prose-covenant ol {
+  list-style: decimal;
+}
+.prose-covenant li + li {
+  margin-top: 0.4em;
+}
+.prose-covenant a {
+  color: var(--color-gold-bright);
+  text-underline-offset: 3px;
+}
+.prose-covenant strong {
+  color: var(--color-parchment);
+  font-weight: 600;
+}
+.prose-covenant blockquote {
+  border-left: 2px solid var(--color-gold);
+  padding-left: 1em;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+/* Visible, on-brand focus ring for keyboard navigation (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid var(--color-gold-bright);
+  outline-offset: 2px;
+}
