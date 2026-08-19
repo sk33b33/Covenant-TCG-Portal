@@ -1,6 +1,14 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/db";
 
+// Without this, Next.js tries to prerender /sitemap.xml at `next build`
+// time (it's eligible for static generation since nothing here reads
+// request data) — which means every production build would require live
+// database connectivity, and a build-time DB hiccup would fail deploys for
+// reasons unrelated to the actual code change. Rendering it per-request
+// instead keeps build success independent of database reachability.
+export const dynamic = "force-dynamic";
+
 const appUrl = (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

@@ -24,6 +24,20 @@ anywhere that runs a Node.js server (Vercel, Fly.io, Railway, a plain VM/contain
 4. **Do not run `npm run db:seed` against production.** It's meant for local/dev environments and
    creates a documented, publicly-known dev password.
 
+### Vercel specifically
+
+Set the same environment variables above in **Project Settings → Environment Variables** for
+every environment you deploy (Production, and Preview if you want preview deploys to work
+against a real — ideally separate — database). Without `DATABASE_URL` set there, the build fails
+outright: `next build` prerenders `/sitemap.xml` and a couple of other fully-static pages, and if
+any of them needed a database connection with no `DATABASE_URL` configured, `pg` silently falls
+back to `127.0.0.1:5432` and the build errors with `Can't reach database server at
+127.0.0.1:5432`. `sitemap.ts` is intentionally marked `export const dynamic = "force-dynamic"`
+so it renders per-request instead of at build time — build success no longer depends on database
+reachability — but the app still won't *work* once deployed without a real, reachable
+`DATABASE_URL` set, since every page other than the handful of fully static ones queries the
+database at request time.
+
 ## Build & run
 
 ```bash
