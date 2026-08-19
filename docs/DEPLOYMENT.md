@@ -20,7 +20,8 @@ anywhere that runs a Node.js server (Vercel, Fly.io, Railway, a plain VM/contain
    - `GAME_SERVER_API_KEY` — a strong random value, shared only with the trusted game server
      backend once one exists
 3. **Run migrations** against the production database: `npx prisma migrate deploy` (not
-   `migrate dev` — that's interactive and meant for local schema iteration).
+   `migrate dev` — that's interactive and meant for local schema iteration). On Vercel this runs
+   automatically — see below.
 4. **Do not run `npm run db:seed` against production.** It's meant for local/dev environments and
    creates a documented, publicly-known dev password.
 
@@ -37,6 +38,19 @@ so it renders per-request instead of at build time — build success no longer d
 reachability — but the app still won't *work* once deployed without a real, reachable
 `DATABASE_URL` set, since every page other than the handful of fully static ones queries the
 database at request time.
+
+**Migrations run automatically on Vercel.** `package.json` defines a `vercel-build` script
+(`prisma migrate deploy && next build`) — Vercel prefers this over the plain `build` script
+automatically when it's present, so every deploy applies any pending schema migrations before
+building, with no manual `prisma migrate deploy` step required.
+
+**If your database is on Supabase**, use the **pooler** connection string for `DATABASE_URL`
+(from Supabase's "Connect" dialog — "Transaction pooler" or "Session pooler", host containing
+`pooler.supabase.com`), not the "Direct connection" one. The direct-connection hostname
+(`db.<project-ref>.supabase.co`) only resolves to an IPv6 address, which most conventional
+serverless/CI networks — Vercel's build/runtime included — can't reach; you'll see
+`Error: P1001: Can't reach database server` if you use it. The pooler hostname resolves to a
+regular IPv4 address and works everywhere.
 
 ## Build & run
 
