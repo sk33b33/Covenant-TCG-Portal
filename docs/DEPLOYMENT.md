@@ -10,7 +10,11 @@ anywhere that runs a Node.js server (Vercel, Fly.io, Railway, a plain VM/contain
 1. **Provision PostgreSQL.** Any managed Postgres works (Neon, Supabase's Postgres, RDS, Fly
    Postgres, etc.) — this project only uses Postgres itself, not any platform-specific service.
 2. **Set environment variables** (see `.env.example` for the full list with descriptions):
-   - `DATABASE_URL` — the production connection string
+   - `DATABASE_URL` — the production connection string, **pooled** (see the Supabase note below)
+   - `DIRECT_URL` — a **session-capable** (non-transaction-pooled) connection string, used only by
+     `prisma migrate deploy`/`migrate dev` for the advisory lock and prepared statements
+     migrations need — a transaction-mode pooler can't provide those and the migration hangs
+     instead of failing cleanly. Same database, different connection mode.
    - `AUTH_SECRET` — a strong random value (`openssl rand -hex 32`), **different from
      development**
    - `APP_URL` — the real public URL (used to build links in verification/reset emails)
@@ -44,13 +48,17 @@ database at request time.
 automatically when it's present, so every deploy applies any pending schema migrations before
 building, with no manual `prisma migrate deploy` step required.
 
-**If your database is on Supabase**, use the **pooler** connection string for `DATABASE_URL`
-(from Supabase's "Connect" dialog — "Transaction pooler" or "Session pooler", host containing
-`pooler.supabase.com`), not the "Direct connection" one. The direct-connection hostname
-(`db.<project-ref>.supabase.co`) only resolves to an IPv6 address, which most conventional
-serverless/CI networks — Vercel's build/runtime included — can't reach; you'll see
-`Error: P1001: Can't reach database server` if you use it. The pooler hostname resolves to a
-regular IPv4 address and works everywhere.
+**If your database is on Supabase**, use the pooler for both, but not the same pooler mode:
+- `DATABASE_URL` → the **Transaction pooler** (port `6543`) — used by the app at runtime
+  (`src/lib/db.ts`), which only ever needs one query at a time per connection.
+- `DIRECT_URL` → the **Session pooler** (port `5432`, same `pooler.supabase.com` host) — used only
+  by Prisma Migrate, which needs session affinity for its advisory lock.
+
+Do not use the "Direct connection" option from Supabase's "Connect" dialog for either one. Its
+hostname (`db.<project-ref>.supabase.co`) only resolves to an IPv6 address, which most
+conventional serverless/CI networks — Vercel's build/runtime included — can't reach; you'll see
+`Error: P1001: Can't reach database server` if you use it. Both pooler hostnames resolve to a
+regular IPv4 address and work everywhere.
 
 ## Build & run
 

@@ -12,6 +12,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Migrations need a session-capable connection (advisory locks, prepared
+  // statements) — a transaction-mode pooler (e.g. Supabase's port 6543)
+  // can't provide that and hangs instead of erroring. `directUrl` is used
+  // only by the Prisma CLI (migrate/introspect), never by the app's own
+  // client at runtime — that keeps using the pooled `DATABASE_URL`
+  // (prisma.config.ts / src/lib/db.ts) unchanged.
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------
