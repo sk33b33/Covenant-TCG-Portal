@@ -36,6 +36,8 @@ model User {
   profile            PlayerProfile?
   gameLink           GamePlayerLink?
   sessions           Session[]
+  gameSessions       GameSession[]
+  gameSave           GameSave?
   verificationTokens VerificationToken[]
   authoredArticles   NewsArticle[]
 
@@ -101,7 +103,54 @@ model PlayerProfile {
 }
 
 // ---------------------------------------------------------------------------
-// Game integration (placeholder — no game client exists yet)
+// Game client sign-in and save data
+//
+// This is the game client (thecovenant.game) signing in directly as a
+// portal account — deliberately separate from GamePlayerLink below, which
+// is a different, still-speculative scenario (a future independently
+// -authenticating client whose own identity gets linked after the fact).
+// Here there is no separate game identity at all: the game *is* the portal
+// account, so the token this issues is scoped to that account's own id.
+// ---------------------------------------------------------------------------
+
+// Same shape and reasoning as Session above (opaque token, only its HMAC
+// hash ever stored) but returned as a bearer token in a JSON response
+// rather than set as a cookie — the game client is a different origin, and
+// a browser can't read another origin's httpOnly cookie anyway.
+model GameSession {
+  id        String   @id // hashToken(rawToken), same convention as Session.id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("game_sessions")
+}
+
+// One row per account: the game's own save data (collection, decks,
+// currencies, story/mission progress, etc.), opaque JSON from the portal's
+// point of view — the game defines its own shape and versions it itself.
+// Merged in place on write (`state = state || patch`) rather than
+// overwritten, so one part of the save updating doesn't clobber another
+// that hasn't changed this tick.
+model GameSave {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state     Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@map("game_saves")
+}
+
+// ---------------------------------------------------------------------------
+// External game-identity linking (placeholder — no such client exists yet)
+//
+// Unrelated to GameSession/GameSave above, which is the real, in-use path
+// for thecovenant.game today. This is a still-speculative *different*
+// scenario: some other client that authenticates players its own way
+// (a platform account, a native login, anything) and needs its opaque
+// identity connected to a portal account after the fact.
 // ---------------------------------------------------------------------------
 
 enum GameLinkStatus {

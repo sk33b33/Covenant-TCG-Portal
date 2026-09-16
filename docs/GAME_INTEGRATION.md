@@ -1,15 +1,48 @@
 # Game integration
 
-Covenant's game client doesn't exist yet. This document describes what's already built
-(the server-to-server API the future game backend will call) and what's intentionally left as a
-design sketch rather than code, because building it now would mean guessing at a client that
-doesn't exist.
+The game client (thecovenant.game) now exists and signs players in directly against this portal
+— see "Player sign-in and save data" below. This document also still describes a *second*,
+separate integration surface: a trusted server-to-server API for a future game *backend* to
+report match results, and a still-speculative design for linking some *other*, independently
+-authenticating client to a portal account. Those two are unrelated to how the game itself signs
+players in today.
 
-## What's implemented today
+## Player sign-in and save data
+
+The game client registers nowhere — accounts only ever get created on the portal (`/register`).
+The game only signs in, against the same `User`/`passwordHash` the website's own login checks
+(`loginAction`, reused validation and rate-limiting, see `src/app/api/game/auth/login/route.ts`).
+There is no separate "game identity": signing into the game *is* signing into the portal account,
+which is why this is unrelated to `GamePlayerLink` below.
+
+```
+POST /api/game/auth/login          { email, password } → { token, expiresAt, user: { email } }
+POST /api/game/auth/logout         Authorization: Bearer <token> → revokes it
+GET  /api/game/save                Authorization: Bearer <token> → { state }
+POST /api/game/save                Authorization: Bearer <token>, { patch: {...} } → merged in place
+```
+
+The bearer token comes from `game-session.ts` — same underlying primitives as a browser session
+(`generateOpaqueToken`/`hashToken` from `src/lib/auth/crypto.ts`, only the hash ever stored), just
+returned as JSON instead of set as a cookie, since the game runs on a different origin and a
+browser can't read another origin's httpOnly cookie anyway. A password reset or change
+(`resetPasswordAction`, `changePasswordAction`) revokes every outstanding game session for that
+user, the same "sign out everywhere" guarantee browser sessions already get.
+
+`GameSave.state` is opaque JSON from the portal's point of view — the game defines and versions
+its own shape entirely. Writes merge (`state = state || patch`) rather than overwrite, so pushing
+one slice of a save can't clobber another slice that hasn't changed this tick.
+
+These four routes are the only `/api/game/*` endpoints that take a browser origin at all (CORS,
+`src/lib/cors.ts`, restricted to `GAME_CLIENT_ORIGIN`) — everything below this point is a
+server-to-server call with no browser involved, and deliberately has no CORS handling at all.
+
+## What's implemented for a future game *backend*: match reporting
 
 Three endpoints under `/api/game/`, authenticated with a **shared-secret Bearer token**
 (`GAME_SERVER_API_KEY`) — a trusted server-to-server call, never something embedded in a game
-client binary. See `src/lib/game-auth.ts`.
+client binary. See `src/lib/game-auth.ts`. Unrelated to the per-player login above: this key
+authenticates a whole trusted backend, not an individual player.
 
 ```
 Authorization: Bearer <GAME_SERVER_API_KEY>
@@ -47,15 +80,20 @@ Resolves a game player id to its linked website profile (display name, avatar), 
 404 if that game identity hasn't been linked to an account yet. Deliberately never returns
 auth-identity fields (email, password hash) — only the public profile.
 
-## What's designed but not built: linking a website account to a game identity
+## What's designed but not built: linking a website account to *another* game identity
+
+Not thecovenant.game — that one signs in directly against a portal account (above), with no
+separate identity to link. This is for a still-hypothetical *different* client that authenticates
+players its own way (a platform account, a native login, anything) and needs its own opaque
+identity connected to a portal account after the fact.
 
 The schema already has the seam for this (`GamePlayerLink`, with `status: NOT_LINKED | PENDING |
 LINKED`), and the dashboard already has a page for it (`/dashboard/game`) that shows whatever
 that status currently is. What's missing is the handshake that actually sets it, because that
-handshake's shape depends on how the game client authenticates a player at all — a decision that
-belongs to the game client, which doesn't exist yet.
+handshake's shape depends on how that client authenticates a player at all — a decision that
+belongs to a client which doesn't exist yet.
 
-The intended flow, once a game client exists:
+The intended flow, once such a client exists:
 
 1. The signed-in player requests a short-lived, single-use **link code** from the website (a new,
    small addition — same pattern as `VerificationToken`: random token, hashed at rest, expiring).
