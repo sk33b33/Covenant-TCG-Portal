@@ -10,15 +10,12 @@ generator client {
   output   = "../generated/prisma"
 }
 
+// Connection URLs live in prisma.config.ts, not here — Prisma 7 rejects a
+// `url`/`directUrl` in the schema file itself (see that file's comment for
+// why the CLI and the app's own runtime client deliberately use different
+// env vars).
 datasource db {
   provider = "postgresql"
-  // Migrations need a session-capable connection (advisory locks, prepared
-  // statements) — a transaction-mode pooler (e.g. Supabase's port 6543)
-  // can't provide that and hangs instead of erroring. `directUrl` is used
-  // only by the Prisma CLI (migrate/introspect), never by the app's own
-  // client at runtime — that keeps using the pooled `DATABASE_URL`
-  // (prisma.config.ts / src/lib/db.ts) unchanged.
-  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------
