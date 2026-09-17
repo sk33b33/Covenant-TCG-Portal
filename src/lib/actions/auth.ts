@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession, destroyCurrentSession, getCurrentSession } from "@/lib/auth/session";
 import { issueVerificationToken, consumeVerificationToken } from "@/lib/auth/tokens";
 import { sendEmail, verificationEmailContent, passwordResetEmailContent } from "@/lib/email";
@@ -27,12 +27,6 @@ function fieldErrorsFromZod(error: { issues: { path: PropertyKey[]; message: str
   }
   return fieldErrors;
 }
-
-// A bcrypt hash of a value nobody will ever type, used to keep the login
-// path's timing similar whether or not the email exists — this avoids
-// leaking account existence through response latency.
-const DUMMY_PASSWORD_HASH =
-  "$2b$12$C6UzMDM.H6dfI/f/IKcEeOoDcqvBEXfXAvVzS6VvSAgvBiMdV5VPu";
 
 export async function registerAction(
   _prevState: ActionState,
@@ -284,6 +278,9 @@ export async function resetPasswordAction(
   await prisma.$transaction([
     prisma.user.update({ where: { id: result.userId }, data: { passwordHash } }),
     prisma.session.deleteMany({ where: { userId: result.userId } }),
+    // Signs the game out too — a password reset should mean "every place
+    // this account was signed in stops working," not just the browser.
+    prisma.gameSession.deleteMany({ where: { userId: result.userId } }),
   ]);
 
   redirect("/login?reset=success");

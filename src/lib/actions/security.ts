@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentSession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { revokeSessionForUser, revokeOtherSessionsForUser } from "@/lib/auth/session";
+import { revokeAllGameSessionsForUser } from "@/lib/auth/game-session";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { changePasswordSchema, setPasswordSchema } from "@/lib/validation/auth";
 import type { ActionState } from "./types";
@@ -67,11 +68,17 @@ export async function changePasswordAction(
   await prisma.user.update({ where: { id: auth.user.id }, data: { passwordHash } });
 
   // Sign out every other device — the one making this change stays signed
-  // in, since it just proved it holds the current password.
+  // in, since it just proved it holds the current password. The game
+  // client has no "current session" here (this action only ever runs from
+  // the website), so every game session goes, not just the others.
   await revokeOtherSessionsForUser(auth.user.id, auth.session.id);
+  await revokeAllGameSessionsForUser(auth.user.id);
 
   revalidatePath("/dashboard/security");
-  return { status: "success", message: "Password updated. Other devices have been signed out." };
+  return {
+    status: "success",
+    message: "Password updated. Other devices, and the game, have been signed out.",
+  };
 }
 
 /** For accounts with no password yet (created via Google sign-in) — sets one for the first time, no current-password check since there isn't one. */
