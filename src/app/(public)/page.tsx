@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/layout/Container";
 import { Card } from "@/components/ui/Card";
@@ -8,6 +9,7 @@ import { DemoDataNotice } from "@/components/leaderboard/DemoDataNotice";
 import { getOptionalUser } from "@/lib/auth/current-user";
 import { listLatestNews } from "@/lib/news";
 import { getActiveSeason, getLeaderboardPreview } from "@/lib/leaderboard";
+import heroKeyArt from "../../../public/hero-key-art.jpg";
 
 export default async function HomePage() {
   const [user, latestNews, activeSeason] = await Promise.all([
@@ -21,31 +23,47 @@ export default async function HomePage() {
   return (
     <>
       <section className="bg-covenant-glow relative overflow-hidden border-b border-line-soft">
-        <Container className="flex flex-col items-start gap-6 py-20 sm:py-28">
-          <Badge tone="gold">In active development</Badge>
-          <h1 className="animate-fade-up font-display text-balance text-4xl leading-tight text-parchment sm:text-6xl">
-            A trading card game worth <span className="text-gold-bright">swearing to</span>.
-          </h1>
-          <p className="animate-fade-up max-w-xl text-lg text-muted [animation-delay:100ms]">
-            Covenant is a strategic trading card game currently in development. This portal is
-            your account hub: create your identity now, and it carries straight into the game
-            when it launches.
-          </p>
-          <div className="animate-fade-up flex flex-col gap-3 sm:flex-row [animation-delay:150ms]">
-            {user ? (
-              <Button href="/dashboard" size="lg">
-                Go to your dashboard
-              </Button>
-            ) : (
-              <>
-                <Button href="/register" size="lg">
-                  Create your account
+        <Container className="grid items-center gap-12 py-20 sm:py-28 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+          <div className="flex flex-col items-start gap-6">
+            <Badge tone="gold">In active development</Badge>
+            <h1 className="animate-fade-up font-display text-balance text-4xl leading-tight text-parchment sm:text-6xl">
+              A trading card game worth <span className="text-gold-bright">swearing to</span>.
+            </h1>
+            <p className="animate-fade-up max-w-xl text-lg text-muted [animation-delay:100ms]">
+              Covenant is a strategic trading card game currently in development. This portal is
+              your account hub: create your identity now, and it carries straight into the game
+              when it launches.
+            </p>
+            <div className="animate-fade-up flex flex-col gap-3 sm:flex-row [animation-delay:150ms]">
+              {user ? (
+                <Button href="/dashboard" size="lg">
+                  Go to your dashboard
                 </Button>
-                <Button href="/about" variant="secondary" size="lg">
-                  Learn about Covenant
-                </Button>
-              </>
-            )}
+              ) : (
+                <>
+                  <Button href="/register" size="lg">
+                    Create your account
+                  </Button>
+                  <Button href="/about" variant="secondary" size="lg">
+                    Learn about Covenant
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="animate-fade-in relative mx-auto w-full max-w-sm [animation-delay:100ms] lg:max-w-none">
+            <div
+              className="absolute inset-0 -z-10 scale-90 bg-gold/25 blur-3xl"
+              aria-hidden="true"
+            />
+            <Image
+              src={heroKeyArt}
+              alt="Covenant key art: angels and crowned figures gathered above a walled city, around the Covenant emblem"
+              className="w-full rounded-lg border border-line-soft shadow-2xl shadow-black/60"
+              sizes="(min-width: 1024px) 480px, 85vw"
+              priority
+            />
           </div>
         </Container>
       </section>
