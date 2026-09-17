@@ -13,7 +13,7 @@ export async function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-line-soft bg-ink/90 backdrop-blur-sm">
       <Container className="relative flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2 text-gold-bright">
-          <LogoMark />
+          <LogoMark priority />
           <Wordmark />
         </Link>
 

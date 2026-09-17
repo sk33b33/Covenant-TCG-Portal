@@ -87,11 +87,14 @@ development.**
 
 ## Assets
 
-No game logo, card artwork, or brand assets exist in this repository yet — `about the game`
-itself is still in development. The header/footer logo (`src/components/layout/Logo.tsx`) is a
-placeholder sigil built from SVG primitives, and every color/typography choice lives in
-`src/app/globals.css` as CSS custom properties. When real artwork exists, drop it in `public/`
-and swap `Logo.tsx`'s contents — nothing else in the app depends on it being SVG-drawn.
+The Covenant crest (`public/logo.png`) is real brand artwork, used as a small badge throughout
+the site (`src/components/layout/Logo.tsx`'s `LogoMark`) alongside the live-text `Wordmark` —
+deliberately not relying on the crest's own baked-in lettering staying legible at header/footer
+size. The same source image is also resized down for the favicon (`src/app/icon.png`) and Apple
+touch icon (`src/app/apple-icon.png`, flattened onto the site's ink background since Apple's
+touch icons don't render transparency). Card artwork and other game assets don't exist yet — the
+game itself is still in development. Every color/typography choice lives in `src/app/globals.css`
+as CSS custom properties; the palette was chosen to complement the crest's gold-on-dark look.
 
 ## Status
 
