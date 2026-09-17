@@ -19,6 +19,11 @@ anywhere that runs a Node.js server (Vercel, Fly.io, Railway, a plain VM/contain
      server console (fine for local dev, silently broken for real users in prod)
    - `GAME_SERVER_API_KEY` — a strong random value, shared only with the trusted game server
      backend once one exists
+   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — optional; omit both to disable Google sign-in
+     entirely. If enabling it, the Authorized redirect URI configured in Google Cloud Console
+     **must exactly match** `<APP_URL>/api/auth/google/callback` for your production `APP_URL` —
+     a mismatch (wrong scheme, trailing slash, wrong domain) fails at Google's end with a
+     `redirect_uri_mismatch` error, not something this app can catch or explain.
 3. **Run migrations** against the production database: `npx prisma migrate deploy` (not
    `migrate dev` — that's interactive and meant for local schema iteration). On Vercel this runs
    automatically — see below.

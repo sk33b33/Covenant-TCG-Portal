@@ -26,7 +26,11 @@ enum Role {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
-  passwordHash  String
+  // Nullable: an account created via Google sign-in has no password until
+  // the player optionally sets one (see docs/AUTH.md#google-sign-in).
+  // Every login path that checks this must handle null explicitly rather
+  // than assuming a value.
+  passwordHash  String?
   role          Role      @default(PLAYER)
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
@@ -38,8 +42,25 @@ model User {
   sessions           Session[]
   verificationTokens VerificationToken[]
   authoredArticles   NewsArticle[]
+  googleAccount      GoogleAccount?
 
   @@map("users")
+}
+
+// A linked Google identity. Separate from User (rather than storing the
+// Google subject id directly on it) so an account can in principle have
+// more than one linked provider later, and so User's shape doesn't change
+// per auth method. `googleSub` is Google's own stable, unique user id —
+// never the email, which can change.
+model GoogleAccount {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  googleSub String   @unique
+  email     String // snapshot at link time, for admin/debugging visibility only
+  createdAt DateTime @default(now())
+
+  @@map("google_accounts")
 }
 
 // Server-side session store. The cookie only ever holds an opaque random

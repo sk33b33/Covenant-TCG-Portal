@@ -7,66 +7,80 @@ import { initialActionState } from "@/lib/actions/types";
 import { FieldGroup, FieldErrors, Input, Label } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { FormMessage } from "@/components/ui/FormMessage";
+import { GoogleAuthButton } from "./GoogleAuthButton";
+import { AuthDivider } from "./AuthDivider";
 
-export function RegisterForm() {
+export function RegisterForm({ googleEnabled }: { googleEnabled: boolean }) {
   const [state, formAction] = useActionState(registerAction, initialActionState);
 
   return (
-    <form action={formAction} noValidate>
-      <FormMessage status="error" message={state.status === "error" ? state.message : undefined} />
+    <>
+      {googleEnabled ? (
+        <>
+          <GoogleAuthButton />
+          <AuthDivider />
+        </>
+      ) : null}
 
-      <FieldGroup>
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          maxLength={254}
+      <form action={formAction} noValidate>
+        <FormMessage
+          status="error"
+          message={state.status === "error" ? state.message : undefined}
         />
-        <FieldErrors errors={state.fieldErrors?.email} />
-      </FieldGroup>
 
-      <FieldGroup>
-        <Label htmlFor="displayName">Display name</Label>
-        <Input
-          id="displayName"
-          name="displayName"
-          type="text"
-          autoComplete="nickname"
-          required
-          minLength={3}
-          maxLength={24}
-        />
-        <FieldErrors errors={state.fieldErrors?.displayName} />
-      </FieldGroup>
+        <FieldGroup>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            maxLength={254}
+          />
+          <FieldErrors errors={state.fieldErrors?.email} />
+        </FieldGroup>
 
-      <FieldGroup>
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={10}
-          maxLength={128}
-        />
-        <p className="mt-1.5 text-xs text-faint">At least 10 characters.</p>
-        <FieldErrors errors={state.fieldErrors?.password} />
-      </FieldGroup>
+        <FieldGroup>
+          <Label htmlFor="displayName">Display name</Label>
+          <Input
+            id="displayName"
+            name="displayName"
+            type="text"
+            autoComplete="nickname"
+            required
+            minLength={3}
+            maxLength={24}
+          />
+          <FieldErrors errors={state.fieldErrors?.displayName} />
+        </FieldGroup>
 
-      <SubmitButton pendingLabel="Creating account…" className="w-full">
-        Create account
-      </SubmitButton>
+        <FieldGroup>
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={10}
+            maxLength={128}
+          />
+          <p className="mt-1.5 text-xs text-faint">At least 10 characters.</p>
+          <FieldErrors errors={state.fieldErrors?.password} />
+        </FieldGroup>
 
-      <p className="mt-6 text-center text-sm text-muted">
-        Already have an account?{" "}
-        <Link href="/login" className="text-gold hover:text-gold-bright">
-          Log in
-        </Link>
-      </p>
-    </form>
+        <SubmitButton pendingLabel="Creating account…" className="w-full">
+          Create account
+        </SubmitButton>
+
+        <p className="mt-6 text-center text-sm text-muted">
+          Already have an account?{" "}
+          <Link href="/login" className="text-gold hover:text-gold-bright">
+            Log in
+          </Link>
+        </p>
+      </form>
+    </>
   );
 }

@@ -45,6 +45,12 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+// For accounts with no password yet (created via Google sign-in) — no
+// current password to verify, since there isn't one.
+export const setPasswordSchema = z.object({
+  newPassword: passwordSchema,
+});
+
 export const updateProfileSchema = z.object({
   displayName: displayNameSchema,
   bio: z.string().trim().max(280, "Bio must be at most 280 characters.").optional(),

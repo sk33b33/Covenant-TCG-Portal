@@ -30,19 +30,22 @@ See [`docs/AUTH.md`](AUTH.md) for the design in detail.
 
 ## Account model
 
-Three concerns are deliberately kept in separate tables (see `prisma/schema.prisma`):
+Several concerns are deliberately kept in separate tables (see `prisma/schema.prisma`):
 
 ```
-User (auth identity)        — email, password hash, role, verification state
-  └── PlayerProfile (public) — display name, avatar, bio
-  └── GamePlayerLink (future) — connection to an in-game player identity
+User (auth identity)        — email, password hash (optional — see below), role, verification state
+  ├── PlayerProfile (public) — display name, avatar, bio
+  ├── GamePlayerLink (future) — connection to an in-game player identity
+  └── GoogleAccount (optional) — a linked Google identity, keyed on Google's stable subject id
 ```
 
 **Why**: the website login (`User`) should never need to change shape just because the public
 profile changes, and the in-game connection (`GamePlayerLink`) is speculative — it exists as a
 clean seam to build the real game-account link against later, without touching auth or profile
 data. A password reset, a display name change, and a future "link my game account" flow are three
-independent operations on three independent tables.
+independent operations on three independent tables. `GoogleAccount` follows the same logic: a
+`User` can exist with a password, a linked Google account, or both — see
+[`docs/AUTH.md`](AUTH.md#google-sign-in) for the account-linking policy.
 
 ## API boundaries
 

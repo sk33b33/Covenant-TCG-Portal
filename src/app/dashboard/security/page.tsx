@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/current-user";
 import { getCurrentSession, listSessionsForUser } from "@/lib/auth/session";
 import { revokeSessionAction } from "@/lib/actions/security";
+import { prisma } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ChangePasswordForm } from "@/components/dashboard/ChangePasswordForm";
+import { SetPasswordForm } from "@/components/dashboard/SetPasswordForm";
 import { ResendVerificationButton } from "@/components/dashboard/ResendVerificationButton";
 
 export const metadata: Metadata = {
@@ -16,7 +18,15 @@ export const metadata: Metadata = {
 export default async function SecurityPage() {
   const user = await requireUser();
   const auth = await getCurrentSession();
-  const sessions = await listSessionsForUser(user.id);
+  const [sessions, credentials] = await Promise.all([
+    listSessionsForUser(user.id),
+    prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { passwordHash: true, googleAccount: { select: { email: true } } },
+    }),
+  ]);
+  const hasPassword = Boolean(credentials.passwordHash);
+  const googleLinked = Boolean(credentials.googleAccount);
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -38,9 +48,25 @@ export default async function SecurityPage() {
       ) : null}
 
       <Card className="p-6">
-        <h2 className="font-display text-lg text-parchment">Change password</h2>
-        <div className="mt-4">
-          <ChangePasswordForm />
+        <h2 className="font-display text-lg text-parchment">
+          {hasPassword ? "Change password" : "Set a password"}
+        </h2>
+        {!hasPassword ? (
+          <p className="mt-1 text-sm text-muted">
+            Your account currently signs in with Google only. Set a password to also be able to
+            log in with email and password.
+          </p>
+        ) : null}
+        <div className="mt-4">{hasPassword ? <ChangePasswordForm /> : <SetPasswordForm />}</div>
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="font-display text-lg text-parchment">Connected accounts</h2>
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-sm text-parchment">Google</span>
+          <Badge tone={googleLinked ? "success" : "neutral"}>
+            {googleLinked ? "Connected" : "Not connected"}
+          </Badge>
         </div>
       </Card>
 

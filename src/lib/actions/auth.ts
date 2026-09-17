@@ -9,6 +9,8 @@ import { issueVerificationToken, consumeVerificationToken } from "@/lib/auth/tok
 import { sendEmail, verificationEmailContent, passwordResetEmailContent } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestIp, getRequestUserAgent } from "@/lib/request";
+import { getAppUrl } from "@/lib/app-url";
+import { safeNextPath } from "@/lib/auth/redirect";
 import {
   registerSchema,
   loginSchema,
@@ -24,21 +26,6 @@ function fieldErrorsFromZod(error: { issues: { path: PropertyKey[]; message: str
     fieldErrors[key] = [...(fieldErrors[key] ?? []), issue.message];
   }
   return fieldErrors;
-}
-
-// Only ever redirect to a same-origin relative path after login — a
-// caller-controlled absolute or protocol-relative URL (`https://evil.tld`,
-// `//evil.tld`) here would be an open redirect.
-function safeNextPath(next: FormDataEntryValue | null): string {
-  const value = typeof next === "string" ? next : "";
-  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("://")) {
-    return value;
-  }
-  return "/dashboard";
-}
-
-function getAppUrl() {
-  return process.env.APP_URL?.replace(/\/$/, "") || "http://localhost:3000";
 }
 
 // A bcrypt hash of a value nobody will ever type, used to keep the login
@@ -145,10 +132,21 @@ export async function loginAction(
     select: { id: true, passwordHash: true },
   });
 
+  // Always run the compare, even when there's no real hash to check
+  // against, so a Google-only account and a nonexistent email take the
+  // same amount of time to reject as a wrong password would.
   const passwordValid = await verifyPassword(
     parsed.data.password,
     user?.passwordHash ?? DUMMY_PASSWORD_HASH,
   );
+
+  if (user && !user.passwordHash) {
+    return {
+      status: "error",
+      message:
+        "This account signs in with Google. Use the Google button below, or set a password from your account security page after signing in.",
+    };
+  }
 
   if (!user || !passwordValid) {
     return { status: "error", message: "Invalid email or password." };
@@ -160,7 +158,8 @@ export async function loginAction(
     userAgent: await getRequestUserAgent(),
   });
 
-  redirect(safeNextPath(formData.get("next")));
+  const nextValue = formData.get("next");
+  redirect(safeNextPath(typeof nextValue === "string" ? nextValue : null));
 }
 
 export async function logoutAction() {

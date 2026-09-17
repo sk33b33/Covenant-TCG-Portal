@@ -29,10 +29,19 @@ known/documented trade-off, and what was found and fixed during review.
   (cookie-presence only, fast redirect) and `requireUser()`/`requireAdmin()` (DB-validated, the
   authoritative check) in every protected layout.
 - **Open redirect**: the post-login `?next=` param (used to return a user to the page they were
-  trying to reach) is validated to be a same-origin relative path
-  (`safeNextPath` in `src/lib/actions/auth.ts`) before being passed to `redirect()` — an absolute
-  or protocol-relative URL falls back to `/dashboard`. Covered by an automated regression check
-  (see below).
+  trying to reach) is validated to be a same-origin relative path (`safeNextPath` in
+  `src/lib/auth/redirect.ts`, shared by both the password-login action and the Google OAuth
+  callback) before being passed to `redirect()` — an absolute or protocol-relative URL falls back
+  to `/dashboard`. Covered by an automated regression check (see below).
+- **Google OAuth**: the authorization-code flow is protected against CSRF by a random `state`
+  value round-tripped through a short-lived, `httpOnly`, path-scoped cookie and checked with a
+  constant-time comparison before the callback does anything else. The returned ID token's
+  signature, issuer, and audience are verified locally against Google's published keys (`jose`)
+  before any of its claims are trusted — a forged or tampered token is rejected before it can
+  reach the account-linking logic at all. An existing account is only ever auto-linked to a
+  Google identity when Google itself reports the email verified (`email_verified: true`); an
+  unverified email is refused rather than linked. See
+  [`docs/AUTH.md`](AUTH.md#google-sign-in).
 - **User enumeration**: login compares against a constant dummy bcrypt hash when the email
   doesn't exist, so response timing doesn't distinguish "wrong password" from "no such account."
   Forgot-password always returns the same generic message regardless of whether the email exists.
@@ -103,3 +112,22 @@ redirect round-trip → the open-redirect guard → admin-only page rejecting a 
 admin news creation rendering correctly on the public site. The `/api/game/*` endpoints were
 exercised directly over HTTP: unauthenticated requests rejected with 401, an authenticated match
 submission correctly updating both players' rating/W-L/matches-played atomically.
+
+**Google sign-in** was verified in the pieces that don't require a real Google Cloud OAuth client
+and a human clicking through Google's consent screen (nothing in this environment can fabricate
+that): the account-linking policy in `resolveOrCreateUserForGoogleIdentity` was exercised
+directly against a real Postgres database with fabricated (but realistic) verified/unverified
+identity payloads, covering all four cases in
+[`docs/AUTH.md`](AUTH.md#google-sign-in) — new account creation, idempotent re-login on the same
+Google subject id, auto-linking to an existing password account on a verified email, and refusal
+to link on an unverified one — plus display-name collision handling. `/api/auth/google/start` and
+`/api/auth/google/callback` were exercised over HTTP: correct Google authorization-URL
+construction, cookie scoping/flags, the `next=` open-redirect guard (a `next` pointing off-site
+falls back to `/dashboard` exactly like the password-login path), and state-mismatch/missing-state
+rejection. The callback's token exchange was confirmed to fail closed (redirect to
+`/login?error=exchange_failed`, no crash, no stack trace leaked to the client) against Google's
+real token endpoint with a deliberately invalid code — full success can only be confirmed with a
+real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and a real consent flow, which is on whoever
+deploys this to verify once those are configured. The login-page messaging for a Google-only
+account, and the security page's set-password vs. change-password branching, were both verified
+end-to-end with a real browser session.

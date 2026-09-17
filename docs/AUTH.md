@@ -2,9 +2,10 @@
 
 ## Overview
 
-Email + password authentication with server-side sessions. No OAuth, no third-party identity
-provider, no JWTs stored client-side. Everything server-verifiable lives in Postgres; the browser
-only ever holds an opaque random token.
+Email + password authentication with server-side sessions, plus optional Google sign-in. No JWTs
+are stored client-side in either case. Everything server-verifiable lives in Postgres; the
+browser only ever holds an opaque random session token (and, briefly, an OAuth CSRF-state token —
+see below).
 
 ## Password storage
 
@@ -62,10 +63,59 @@ sees it if verification happened directly on the GET request. Password reset has
 token validity (read-only) without consuming it, and only *submitting the new-password form*
 (a real user action) consumes the token.
 
+## Google sign-in
+
+Optional — hidden entirely when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` aren't set
+(`isGoogleSignInConfigured()`). Implemented directly against Google's OAuth 2.0 endpoints
+(`src/lib/auth/google.ts`) rather than a library like NextAuth, for the same reason the rest of
+auth is hand-rolled — see [`docs/ARCHITECTURE.md`](ARCHITECTURE.md#why-not-a-third-party-auth-library).
+
+**Flow** (`/api/auth/google/start` → Google's consent screen → `/api/auth/google/callback`):
+
+1. `/start` generates a random CSRF `state` value and stores it (plus the validated `next`
+   return path) in short-lived, `httpOnly`, path-scoped cookies, then redirects to Google.
+2. `/callback` checks the returned `state` against the cookie before doing anything else — an
+   attacker who tricks a victim into visiting a crafted callback URL with a code the attacker
+   controls can't complete the flow without also having the victim's state cookie.
+3. The authorization code is exchanged for tokens server-to-server, and the returned ID token's
+   signature, issuer, and audience are verified locally against Google's published JWKS
+   (`jose`'s `createRemoteJWKSet` + `jwtVerify`) — not by decoding the JWT unchecked, and not via
+   Google's tokeninfo endpoint (which Google's own docs say isn't meant for production call
+   volume).
+4. Only after that verification are the token's claims (`sub`, `email`, `email_verified`, `name`)
+   trusted at all.
+
+**Account linking policy** (`resolveOrCreateUserForGoogleIdentity`,
+`src/lib/auth/google-link.ts`):
+
+1. A Google subject id (`sub`) already linked to a `User` → that's them, log in.
+2. No link yet, but the email matches an existing `User`, **and** Google reports that email as
+   verified → attach this Google identity to the existing account automatically. This is safe
+   specifically because Google — not the person clicking a link — is the one asserting the email
+   is verified; an attacker can't get Google to confirm an email they don't control. If Google
+   ever reported an unverified email here, linking is refused rather than silently trusted.
+3. No existing `User` with that email → create one, with no password (`passwordHash: null`) and
+   `emailVerified` already set, since Google verified it. The player can add a password later
+   from the security page (`setPasswordAction`) to also be able to log in without Google.
+
+A `GoogleAccount` row (not fields bolted onto `User`) records the link — same separation-of-concerns
+pattern as `PlayerProfile`/`GamePlayerLink` — keyed on `googleSub`, Google's stable id, never the
+email (which could theoretically change).
+
+**Login with a Google-only account**: `loginAction` still runs a real bcrypt compare (against a
+dummy hash) even when the account has no password set, so the response takes the same time
+whether the email doesn't exist, belongs to a Google-only account, or belongs to a
+password account with the wrong password entered — only the message text differs. The account
+does get a specific "this account signs in with Google" message rather than the generic invalid-
+credentials one; that's a deliberate, small, and common UX trade-off (it confirms the email is
+registered) in exchange for not leaving a real player stuck guessing why their password doesn't
+work when they never set one.
+
 ## Rate limiting
 
 `src/lib/rate-limit.ts` — an in-memory fixed-window limiter applied to register, login, forgot
-password, change password, and resend-verification. It's intentionally simple, with a known
+password, change/set password, resend-verification, the Google OAuth callback, and the
+game-server match-submission API. It's intentionally simple, with a known
 limitation documented in the file: it's per-process, so it resets on deploy and doesn't share
 state across multiple instances. That's an acceptable trade-off for a single-instance deployment;
 scaling to multiple instances/replicas means swapping this for a shared store (Redis/Upstash) —
@@ -88,7 +138,7 @@ only the call sites in `src/lib/actions/*.ts` would need to change, not the call
 ## What's explicitly out of scope today
 
 - Multi-factor authentication
-- OAuth / social login
+- Additional OAuth providers beyond Google
 - Passkeys/WebAuthn
 
 None of these are precluded by this design — they'd layer on top of the existing `User` /
